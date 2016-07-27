@@ -101,8 +101,19 @@
 				half4 depthFade;
 				half4 fogColor;
 				half4 black = half4(0,0,0,1);
-
-				depthFade = pxlDepth * (1 / (_EndFade - _StartFade)) - (_StartFade/(_EndFade - _StartFade));
+				
+				//Depth for determing fog color is limited by visibility
+				half fogDepth;
+				if (camDepth > _Visibility) {
+					fogDepth = clamp(pxlDepth, camDepth-_Visibility, camDepth+_Visibility);
+				}
+				else if (camDepth >= 0) {
+					fogDepth = clamp(pxlDepth, 0, camDepth+_Visibility);
+				}
+				else {
+					fogDepth = clamp(pxlDepth, 0, _Visibility);
+				}
+				depthFade = fogDepth * (1 / (_EndFade - _StartFade)) - (_StartFade/(_EndFade - _StartFade));
 				depthFade = clamp(depthFade, 0, 1);
 				fogColor = lerp(_CameraBGColor, black, depthFade);
 				half fogFade = (pxlDist / _Visibility);
