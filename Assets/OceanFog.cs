@@ -12,7 +12,6 @@ public class OceanFog : MonoBehaviour {
 	public float surfaceHeight = 5.0f;
 	public float visibility = 80.0f;
     public MeshRenderer waterPlane;
-    public float aboveWaterFarClippingPlane = 1000;
 	
 	void Awake ()
 	{
@@ -20,24 +19,18 @@ public class OceanFog : MonoBehaviour {
 			fogMaterial = new Material(fogShader);
 		GetComponent<Camera>().depthTextureMode = DepthTextureMode.Depth;
 
-        waterPlane.transform.position = new Vector3(0, surfaceHeight - 0.02f, 0);
+        waterPlane.transform.position = new Vector3(0, surfaceHeight-0.01f, 0);
         waterPlane.transform.rotation = Quaternion.Euler(180, 0, 0);
 	}
 
 	[ImageEffectOpaque]
 	void OnRenderImage(RenderTexture src, RenderTexture dest) {
 		if (fogShader != null && fogMaterial != null) {
-            waterPlane.transform.position = new Vector3(0, surfaceHeight - 0.02f, 0);
+            waterPlane.transform.position = new Vector3(0, surfaceHeight-0.01f, 0);
             waterPlane.transform.rotation = Quaternion.Euler(180, 0, 0);
 
             Camera cam = GetComponent<Camera>();
 			Transform camtr = cam.transform;
-            if (camtr.position.y < surfaceHeight) {
-                cam.farClipPlane = visibility;
-            }
-            else {
-                cam.farClipPlane = aboveWaterFarClippingPlane;
-            }
 			float camNear = cam.nearClipPlane;
 			float camFar = cam.farClipPlane;
 			float camFov = cam.fieldOfView;
@@ -76,8 +69,6 @@ public class OceanFog : MonoBehaviour {
 			var camPos= camtr.position;
             fogMaterial.SetMatrix ("_FrustumCornersWS", frustumCorners);
             fogMaterial.SetVector ("_CameraWS", camPos);
-
-
 
 			Matrix4x4 viewMat = cam.worldToCameraMatrix;
 			Matrix4x4 projMat = GL.GetGPUProjectionMatrix( cam.projectionMatrix, false );
