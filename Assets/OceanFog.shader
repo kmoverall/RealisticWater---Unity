@@ -6,6 +6,7 @@
 		_ColorFade ("Color Fade", Vector) = (0.624, 0.0325, 0.00635, 1)
 		_SurfaceHeight ("Surface Height", Float) = 5
 		_Density ("Particle Density", Float) = 0.00625
+		_WaterColor ("Particle Color", Vector) = (1, 1, 1, 1)
 		_SkyFog ("Air Fog Density", Float) = 0.0002
 		[HideInInspector] _SunColor ("Sun Color", Vector) = (1, 1, 1, 1)
 		[HideInInspector] _SunIntensity ("Sun Intensity", Float) = 1
@@ -32,6 +33,7 @@
 			half _SkyFog;
 			half _SurfaceHeight;
 			half _Density;
+			half4 _WaterColor;
 			half4 _SunColor;
 			half _SunIntensity;
 			float4x4 _ViewProjInv;
@@ -66,7 +68,7 @@
 				//Divided by integral of parameterized distance * attenuation
 				depthFade /= _ColorFade * (waterDepth - clampedCamDepth + waterDist);
 
-				fogColor = lerp(black, lerp(unity_AmbientSky, _SunColor, _SunIntensity), depthFade);
+				fogColor = lerp(black, lerp(unity_AmbientSky, _SunColor, _SunIntensity) * _WaterColor, depthFade);
 
 				src = applyFog(waterDist + waterDepth, _ColorFade, black, src);
 				src = applyFog(waterDist, _Density, fogColor, src);

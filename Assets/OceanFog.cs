@@ -10,6 +10,7 @@ public class OceanFog : MonoBehaviour {
 	public Vector3 waterColorFadeRate = new Vector3(0.624f, 0.0325f, 0.00635f);
 	public float surfaceHeight = 5.0f;
 	public float particleDensity = 0.00625f;
+    public Vector3 particleColor = new Vector3(1.0f, 1.0f, 1.0f);
     public MeshRenderer waterPlane;
 
     public float airFogDensity = 0.0002f;
@@ -81,6 +82,7 @@ public class OceanFog : MonoBehaviour {
             fogMaterial.SetFloat("_SkyFog", airFogDensity);
             fogMaterial.SetFloat("_SurfaceHeight", surfaceHeight);
 			fogMaterial.SetFloat("_Density", particleDensity);
+            fogMaterial.SetVector("_WaterColor", particleColor);
 			fogMaterial.SetColor("_CameraBGColor", GetComponent<Camera>().backgroundColor);
             if (sun != null) {
                 fogMaterial.SetVector("_SunColor", sun.color);

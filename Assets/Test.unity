@@ -471,6 +471,7 @@ MonoBehaviour:
   waterColorFadeRate: {x: 0.624, y: 0.0325, z: 0.00635}
   surfaceHeight: 70
   particleDensity: 0.00625
+  particleColor: {x: 0.5, y: 0.5, z: 0.5}
   waterPlane: {fileID: 1830382948}
   airFogDensity: 0.001
   sun: {fileID: 1928203052}
