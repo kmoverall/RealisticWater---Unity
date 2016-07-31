@@ -3,10 +3,12 @@
 	Properties
 	{
 		_MainTex ("Texture", 2D) = "white" {}
-		_StartFade ("Start Fade", Vector) = (0, 0, 0, 1)
-		_EndFade ("End Fade", Vector) = (10, 50, 100, 1)
+		_ColorFade ("Color Fade", Vector) = (0.624, 0.0325, 0.00635, 1)
 		_SurfaceHeight ("Surface Height", Float) = 5
-		_Visibility ("Visibility", Float) = 50
+		_Density ("Particle Density", Float) = 0.00625
+		_SkyFog ("Air Fog Density", Float) = 0.0002
+		[HideInInspector] _SunColor ("Sun Color", Vector) = (1, 1, 1, 1)
+		[HideInInspector] _SunIntensity ("Sun Intensity", Float) = 1
 		[HideInInspector] _CameraBGColor ("Camera Background Color", Color) = (49, 77, 121, 1)
 	}
 	SubShader
@@ -25,17 +27,56 @@
 			#include "AutoLight.cginc"
 
 			sampler2D _CameraDepthTexture;
-			half4 _StartFade;
-			half4 _EndFade;
+			half4 _ColorFade;
 			half4 _CameraBGColor;
+			half _SkyFog;
 			half _SurfaceHeight;
-			half _Visibility;
+			half _Density;
+			half4 _SunColor;
+			half _SunIntensity;
 			float4x4 _ViewProjInv;
 			uniform float4x4 _FrustumCornersWS;
 			uniform float4 _CameraWS;
 
 			uniform float4 _MainTex_TexelSize;
 
+			float4 applyFog(float dist, float4 density, float4 color, float4 src)
+			{
+				//This is the formula I = e^(-cx) * I_0, where c is the attenuation constant, x is the distance, and I is the intensity that penetrates the substance
+				float4 f = dist * density * 1.4426950408f; // 1 / ln(2)
+				f = exp2(-f);
+				return lerp(color, src, f);
+			}
+
+			float4 applyWaterFog(float waterDist, float waterDepth, float camDepth, float4 src)
+			{
+				float4 depthFade;
+				float4 fogColor;
+				float4 white = float4(1, 1, 1, 1);
+				float4 black = float4(0, 0, 0, 1);
+
+				//Determine Fog Color
+				//This is based on the applyFog formula, integrated over distance + depth to find the total of all of the light reaching the camera
+
+				//Total light from surface straight down to camera
+				float clampedCamDepth = max(camDepth, 0);
+				depthFade = exp2(-1 * clampedCamDepth * _ColorFade * 1.4426950408f); // 1 / ln(2)
+																					 //Total light from surface straight down to point being viewed bounced to the camera
+				depthFade -= exp2(-1 * (waterDepth + waterDist) * _ColorFade * 1.4426950408f);
+				//Divided by integral of parameterized distance * attenuation
+				depthFade /= _ColorFade * (waterDepth - clampedCamDepth + waterDist);
+
+				fogColor = lerp(black, lerp(unity_AmbientSky, _SunColor, _SunIntensity), depthFade);
+
+				src = applyFog(waterDist + waterDepth, _ColorFade, black, src);
+				src = applyFog(waterDist, _Density, fogColor, src);
+
+				return src;
+			}
+
+			float4 applyAirFog(float airDist, float4 src) {
+				return applyFog(airDist, _SkyFog, _CameraBGColor, src);
+			}
 
 			struct v2f
 			{
@@ -69,6 +110,7 @@
 
 			fixed4 frag (v2f i) : SV_Target
 			{
+
 				// Reconstruct world space position & direction
 				// towards this screen pixel.
 				float rawDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,i.uv_depth);
@@ -79,80 +121,43 @@
 				float pxlDist; 
 				pxlDist = length(wsDir);
 				pxlDist -= _ProjectionParams.y;
-
 				float waterDist = pxlDist;
+				float airDist = pxlDist;
+
 				float pxlDepth = _SurfaceHeight - wsPos.y;
-				float fogDepth = pxlDepth;
+				float waterDepth = pxlDepth;
 				float camDepth = _SurfaceHeight - _CameraWS.y;
 				
 				half4 col = tex2D(_MainTex, i.uv);
-				//Pixel and camera are out of water
-				if (pxlDepth < 0 && camDepth < 0) {
-					return col;
-				}
 
 				//Calculate the amount of water between pixel and camera if one of the two is out of water
-				if (camDepth < 0) {
+				if (camDepth < 0 && pxlDepth < 0) {
+					waterDist = 0;
+					col = applyAirFog(pxlDist, col);
+				}
+				else if (camDepth >= 0 && pxlDepth >= 0) {
+					airDist = 0;
+					col = applyWaterFog(waterDist, waterDepth, camDepth, col);
+				}
+				else if (camDepth < 0 && pxlDepth >= 0) {
 					waterDist *= 1 - (-1 * camDepth) / abs(wsPos.y - _CameraWS.y);
-				}
-				else if (pxlDepth < 0) {
-					waterDist *= camDepth / abs(wsPos.y - _CameraWS.y);
-					//Clamping to 0 makes above water pixels color as if they were on the surface
-					pxlDepth = 0;
-				}
-
-				//Clamp the distance to Visibility so fog color/density can compenstate properly for visibility
-				if (pxlDepth >= 0 && waterDist > _Visibility) {
-					//clampedWorld is world position, with positions clamped so that they are closer than _Visibility to the
-					//intersection of the viewing ray and the water volume
-					float4 clampedWorld;
-					if (camDepth < 0) {
-						clampedWorld = _CameraWS + wsDir * (pxlDist - waterDist + _Visibility) / length(wsDir);
-					}
-					else {
-						clampedWorld = _CameraWS + wsDir * (_Visibility) / length(wsDir);
-					}
-					waterDist = _Visibility;
-
-					//Adjust fog depth to match new distance
-					fogDepth = _SurfaceHeight - clampedWorld.y;
-				}
-			
-				float4 fade;
-				float4 depthFade;
-				float fogFade;
-				float4 fogColor;
-				float4 black = float4(0,0,0,1);
-				
-				//Depth determines fog color, but this depth is limited by visibility
-				if (camDepth > _Visibility) {
-					fogDepth = clamp(fogDepth, camDepth-_Visibility, camDepth+_Visibility);
-				}
-				else if (camDepth >= 0) {
-					fogDepth = clamp(fogDepth, 0, camDepth+_Visibility);
+					airDist = pxlDist - waterDist;
+					col = applyWaterFog(waterDist, waterDepth, camDepth, col);
+					col = applyAirFog(airDist, col);
 				}
 				else {
-					fogDepth = clamp(fogDepth, 0, _Visibility);
+					waterDist *= camDepth / abs(wsPos.y - _CameraWS.y);
+					airDist = pxlDist - waterDist;
+					//Clamping to 0 makes above water pixels color as if they were on the surface
+					waterDepth = 0;
+					col = applyAirFog(airDist, col);
+					col = applyWaterFog(waterDist, waterDepth, camDepth, col);
 				}
-
-				//Determine Fog Color
-				depthFade = fogDepth * (1 / (_EndFade - _StartFade)) - (_StartFade/(_EndFade - _StartFade));
-				depthFade = clamp(depthFade, 0, 1);
-				fogColor = lerp(_CameraBGColor, black, depthFade);
-
-				//Determine Fog Density
-				fogFade = (waterDist / _Visibility);
-				fogFade = smoothstep(0, 1, fogFade);
-	
-				//Determine color absorption
-				fade = (waterDist + pxlDepth) * (1 / (_EndFade - _StartFade)) - (_StartFade/(_EndFade - _StartFade));
-				fade = smoothstep(0, 1, fade);
-	
-				col = lerp(col, black, fade);
-				col = lerp(col, fogColor, fogFade);
 
 				return col;
 			}
+
+			
 			ENDCG
 		}
 	}

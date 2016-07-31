@@ -7,13 +7,15 @@ public class OceanFog : MonoBehaviour {
     Material fogMaterial = null;
 	public Shader fogShader = null;
 	
-	public Vector3 startFade = Vector3.zero;
-	public Vector3 endFade = new Vector3(5, 120, 250);
+	public Vector3 waterColorFadeRate = new Vector3(0.624f, 0.0325f, 0.00635f);
 	public float surfaceHeight = 5.0f;
-	public float visibility = 80.0f;
+	public float particleDensity = 0.00625f;
     public MeshRenderer waterPlane;
-	
-	void Awake ()
+
+    public float airFogDensity = 0.0002f;
+    public Light sun;
+
+    void Awake ()
 	{
 		if (fogShader != null) 
 			fogMaterial = new Material(fogShader);
@@ -74,12 +76,16 @@ public class OceanFog : MonoBehaviour {
 			Matrix4x4 projMat = GL.GetGPUProjectionMatrix( cam.projectionMatrix, false );
 			Matrix4x4 viewProjMat = (projMat * viewMat);          
 			Shader.SetGlobalMatrix("_ViewProjInv", viewProjMat.inverse);
-
-			fogMaterial.SetVector("_StartFade", startFade);
-			fogMaterial.SetVector("_EndFade", endFade);
-			fogMaterial.SetFloat("_SurfaceHeight", surfaceHeight);
-			fogMaterial.SetFloat("_Visibility", visibility);
+            
+			fogMaterial.SetVector("_ColorFade", waterColorFadeRate);
+            fogMaterial.SetFloat("_SkyFog", airFogDensity);
+            fogMaterial.SetFloat("_SurfaceHeight", surfaceHeight);
+			fogMaterial.SetFloat("_Density", particleDensity);
 			fogMaterial.SetColor("_CameraBGColor", GetComponent<Camera>().backgroundColor);
+            if (sun != null) {
+                fogMaterial.SetVector("_SunColor", sun.color);
+                fogMaterial.SetFloat("_SunIntensity", sun.intensity);
+            }
 			//Graphics.Blit(src, dest, fogMaterial);
 
 			CustomGraphicsBlit (src, dest, fogMaterial, 0);
