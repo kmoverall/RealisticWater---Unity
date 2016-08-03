@@ -50,25 +50,20 @@
 				return lerp(color, src, f);
 			}
 
-			float4 applyWaterFog(float waterDist, float waterDepth, float camDepth, float4 src)
+			float4 applyWaterFog(float waterDist, float waterDepth, float camDepth, float4 viewDir, float4 src)
 			{
 				float4 depthFade;
 				float4 fogColor;
+				float4 upColor;
+				float4 downColor;
+				float4 lightColor;
 				float4 white = float4(1, 1, 1, 1);
 				float4 black = float4(0, 0, 0, 1);
 
 				//Determine Fog Color
-				//This is based on the applyFog formula, integrated over distance + depth to find the total of all of the light reaching the camera
-
-				//Total light from surface straight down to camera
 				float clampedCamDepth = max(camDepth, 0);
-				depthFade = exp2(-1 * clampedCamDepth * _ColorFade * 1.4426950408f); // 1 / ln(2)
-																					 //Total light from surface straight down to point being viewed bounced to the camera
-				depthFade -= exp2(-1 * (waterDepth + waterDist) * _ColorFade * 1.4426950408f);
-				//Divided by integral of parameterized distance * attenuation
-				depthFade /= _ColorFade * (waterDepth - clampedCamDepth + waterDist);
-
-				fogColor = lerp(black, lerp(unity_AmbientSky, _SunColor, _SunIntensity) * _WaterColor, depthFade);
+				lightColor = lerp(unity_AmbientSky, _SunColor, _SunIntensity) * _WaterColor;
+				fogColor = applyFog(clampedCamDepth + lerp((1/_Density)*2, 0, (viewDir.y+1)/2), _ColorFade, black, lightColor);
 
 				src = applyFog(waterDist + waterDepth, _ColorFade, black, src);
 				src = applyFog(waterDist, _Density, fogColor, src);
@@ -139,12 +134,12 @@
 				}
 				else if (camDepth >= 0 && pxlDepth >= 0) {
 					airDist = 0;
-					col = applyWaterFog(waterDist, waterDepth, camDepth, col);
+					col = applyWaterFog(waterDist, waterDepth, camDepth, normalize(wsDir), col);
 				}
 				else if (camDepth < 0 && pxlDepth >= 0) {
 					waterDist *= 1 - (-1 * camDepth) / abs(wsPos.y - _CameraWS.y);
 					airDist = pxlDist - waterDist;
-					col = applyWaterFog(waterDist, waterDepth, camDepth, col);
+					col = applyWaterFog(waterDist, waterDepth, camDepth, normalize(wsDir), col);
 					col = applyAirFog(airDist, col);
 				}
 				else {
@@ -153,7 +148,7 @@
 					//Clamping to 0 makes above water pixels color as if they were on the surface
 					waterDepth = 0;
 					col = applyAirFog(airDist, col);
-					col = applyWaterFog(waterDist, waterDepth, camDepth, col);
+					col = applyWaterFog(waterDist, waterDepth, camDepth, normalize(wsDir), col);
 				}
 
 				return col;
